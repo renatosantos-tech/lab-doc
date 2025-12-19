@@ -1,8 +1,10 @@
 #!/bin/bash
 
+set -euo pipefail
+IFS=$'\n\t'
+
 AZUL="\033[1;34m"
 RESET="\033[0m"
-set -e
 
 check_dpkg() {
   echo -e "${AZUL}Verificando estado do dpkg/locks...${RESET}"
@@ -14,11 +16,11 @@ check_dpkg() {
   fi
 
   # Remove locks órfãos
-  rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock || true
+  sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock || true
 
   # Tenta corrigir pacotes meio instalados
-  apt -f install -y || true
-  dpkg --configure -a || true
+  sudo apt-get -f install -y || true
+  sudo dpkg --configure -a || true
 }
 
 check_dpkg
@@ -29,7 +31,7 @@ sleep 1
 echo
 echo -e "${AZUL}Versão atual do sistema:${RESET}"
 echo "--------------------------------"
-cat /etc/os-release | egrep 'PRETTY_NAME|VERSION='
+grep -E 'PRETTY_NAME|VERSION=' /etc/os-release
 echo
 echo "Kernel:"
 uname -r
@@ -37,14 +39,14 @@ echo "--------------------------------"
 sleep 1
 
 echo
-echo -e "${AZUL}0) Limpando espaço (autoremove/autoclean/clean)...${RESET}"
-sudo apt autoremove -y
-sudo apt autoclean
-sudo apt clean
+echo -e "${AZUL}0) Limpando espaço inicial (autoremove/autoclean/clean)...${RESET}"
+sudo apt-get autoremove -y
+sudo apt-get autoclean
+sudo apt-get clean
 
 echo
-echo -e "${AZUL}1) apt update${RESET}"
-sudo apt update
+echo -e "${AZUL}1) apt-get update${RESET}"
+sudo apt-get update
 
 echo
 echo -e "${AZUL}2) Resumo de upgrades disponíveis (até 30 pacotes)...${RESET}"
@@ -62,13 +64,15 @@ fi
 
 echo
 echo -e "${AZUL}3) Aplicando full-upgrade (todos os pacotes pendentes)...${RESET}"
-sudo DEBIAN_FRONTEND=noninteractive apt full-upgrade -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y
 echo -e "${AZUL}Upgrades instalados.${RESET}"
 
 echo
 echo -e "${AZUL}[KERNEL] Limpando kernels antigos (mantendo atual e mais recente)...${RESET}"
 CURRENT="$(uname -r)"
-mapfile -t KERNELS < <(dpkg --list | awk '/linux-image-[0-9].*-generic/ {print $2}' | sort)
+# lista kernels genéricos instalados, ordenados por versão
+mapfile -t KERNELS < <(dpkg --list | awk '/linux-image-[0-9].*-generic/ {print $2}' | sort -V)
+
 if [ "${#KERNELS[@]}" -gt 2 ]; then
   KEEP1="linux-image-${CURRENT}"
   KEEP2="${KERNELS[-1]}"
@@ -76,24 +80,24 @@ if [ "${#KERNELS[@]}" -gt 2 ]; then
   for K in "${KERNELS[@]}"; do
     if [ "$K" != "$KEEP1" ] && [ "$K" != "$KEEP2" ]; then
       echo "[KERNEL] Removendo kernel antigo: $K"
-      sudo apt remove --purge -y "$K"
+      sudo apt-get remove --purge -y "$K"
     fi
   done
-  sudo apt autoremove --purge -y
+  sudo apt-get autoremove --purge -y
 else
   echo "[KERNEL] Já há ${#KERNELS[@]} kernels ou menos; nada a remover."
 fi
 
 echo
 echo -e "${AZUL}4) Limpeza pós-upgrade (autoremove/autoclean/clean)${RESET}"
-sudo apt autoremove -y
-sudo apt autoclean
-sudo apt clean
+sudo apt-get autoremove -y
+sudo apt-get autoclean
+sudo apt-get clean
 
 echo
 echo -e "${AZUL}Versão após atualização:${RESET}"
 echo "--------------------------------"
-cat /etc/os-release | egrep 'PRETTY_NAME|VERSION='
+grep -E 'PRETTY_NAME|VERSION=' /etc/os-release
 echo
 echo "Kernel:"
 uname -r
@@ -139,12 +143,12 @@ echo -e "${AZUL}=== Rotina finalizada ===${RESET}"
 #
 #echo
 #echo -e "${AZUL}Aplicando lote de até 100 pacotes...${RESET}"
-#sudo DEBIAN_FRONTEND=noninteractive xargs -a /tmp/pacotes_lote.txt apt install -y
+#sudo DEBIAN_FRONTEND=noninteractive xargs -a /tmp/pacotes_lote.txt apt-get install -y
 #
 #echo
 #echo -e "${AZUL}Limpeza pós-lote (autoremove/autoclean)${RESET}"
-#sudo apt autoremove -y
-#sudo apt autoclean
+#sudo apt-get autoremove -y
+#sudo apt-get autoclean
 #
 #echo
 #echo -e "${AZUL}Lote concluído. Rode o script novamente para o próximo lote.${RESET}"
