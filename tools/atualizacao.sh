@@ -66,6 +66,25 @@ sudo DEBIAN_FRONTEND=noninteractive apt full-upgrade -y
 echo -e "${AZUL}Upgrades instalados.${RESET}"
 
 echo
+echo -e "${AZUL}[KERNEL] Limpando kernels antigos (mantendo atual e mais recente)...${RESET}"
+CURRENT="$(uname -r)"
+mapfile -t KERNELS < <(dpkg --list | awk '/linux-image-[0-9].*-generic/ {print $2}' | sort)
+if [ "${#KERNELS[@]}" -gt 2 ]; then
+  KEEP1="linux-image-${CURRENT}"
+  KEEP2="${KERNELS[-1]}"
+  echo "[KERNEL] Mantendo: $KEEP1 e $KEEP2"
+  for K in "${KERNELS[@]}"; do
+    if [ "$K" != "$KEEP1" ] && [ "$K" != "$KEEP2" ]; then
+      echo "[KERNEL] Removendo kernel antigo: $K"
+      sudo apt remove --purge -y "$K"
+    fi
+  done
+  sudo apt autoremove --purge -y
+else
+  echo "[KERNEL] Já há ${#KERNELS[@]} kernels ou menos; nada a remover."
+fi
+
+echo
 echo -e "${AZUL}4) Limpeza pós-upgrade (autoremove/autoclean/clean)${RESET}"
 sudo apt autoremove -y
 sudo apt autoclean
